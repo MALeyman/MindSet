@@ -1,5 +1,3 @@
-
-
 import chess
 import chess.svg
 from IPython.display import SVG, display
@@ -12,9 +10,32 @@ channel_to_piece = {
 }
 
 def onehot_to_fen(onehot_13_8_8, castling_feat, turn_char='w'):
+    """
+    Преобразует представление шахматной позиции из one-hot формата в строку в нотации FEN.
+
+    Параметры:
+    onehot_13_8_8 (np.array): Тензор размером (13, 8, 8), где первые 12 слоев – one-hot кодирование положения фигур на доске,
+                              13-й слой – признак шаха на проходе (en passant).
+    castling_feat (np.array): Массив из 4 элементов, содержащий признаки наличия прав рокировки для белых и чёрных:
+                             [белая короткая, белая длинная, чёрная короткая, чёрная длинная].
+    turn_char (str): Символ, обозначающий очередность хода ('w' для белых, 'b' для чёрных). По умолчанию 'w'.
+
+    Возвращаемое значение:
+    str: Полная строка шахматной позиции в формате FEN, включающая расположение фигур, очередность хода,
+         права на рокировку, поле для взятия на проходе, и счетчики ходов (эти последний два в функции заданы фиксировано).
+
+    Описание:
+    - Функция проходит по слоям one-hot кода, преобразуя их в стандартное текстовое обозначение пешек, коней, слонов, ладей, ферзей и королей для белых и чёрных.
+    - Опустошённые клетки кодируются цифрой, обозначающей количество пустых подряд идущих клеток.
+    - Генерируется стандартная FEN-строка с разделителем '/' для рядов доски, начиная с 8-го ряда вниз.
+    - Права рокировки формируются из массива флагов, отсутствующие права обозначаются '-'.
+    - Поле для взятия на проходе вычисляется из 13-го слоя one-hot, если оно отсутствует, ставится '-'.
+    - Счетчики ходов в конце FEN заданы как "0 1" по умолчанию.
+
+    """
     onehot = onehot_13_8_8[:12]
     fen_rows = []
-    for row in range(7, -1, -1):  # Important: FEN rows from 8 to 1
+    for row in range(7, -1, -1):  
         fen_row = ''
         empty_count = 0
         for col in range(8):
@@ -53,7 +74,20 @@ def onehot_to_fen(onehot_13_8_8, castling_feat, turn_char='w'):
 
     return f"{board_fen} {turn_char} {castling_str} {ep_str} 0 1"
 
+
 def index_to_move_label(move_int):
+    """
+    Преобразует целочисленный индекс шахматного хода в строковое обозначение хода.
+
+    Параметры:
+    move_int (int): Индекс хода, закодированный как число от 0 до 4095, где
+                    целая часть от деления на 64 — это индекс начальной клетки (from_square),
+                    а остаток от деления на 64 — индекс конечной клетки (to_square).
+
+    Возвращаемое значение:
+    str: Строка с ходом в формате  "e2e4", где первые две буквы и цифры — начальная клетка,
+         а последние две — конечная клетка.
+    """
     from_sq = move_int // 64
     to_sq = move_int % 64
     file = lambda sq: chr(ord('a') + (sq % 8))
@@ -62,6 +96,12 @@ def index_to_move_label(move_int):
 
 
 def display_positions_after_moves(board_tensor, castling_tensor, label, predicted_move_index, turn_char='w'):
+    ''' 
+    Вывод досок:
+        Исходная позиция
+        Позиция после предсказанного  хода
+        Позиция после реального  хода
+    '''
     # Преобразование input в numpy
     board_np = board_tensor.numpy()
     castling_np = castling_tensor.numpy()
@@ -110,7 +150,14 @@ from utils.convert_dataset import index_to_move
 from utils.convert_dataset import  get_fen_and_label
 
 def predict_move(model, board, castling, label):
+    ''' 
+    Исходную позицию
+    Реальный ход
+    Вероятности ходов
+    Индекс предсказанного хода
+    Выводит доску с текущей позицией
 
+    '''
     model.eval()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -135,7 +182,7 @@ def predict_move(model, board, castling, label):
     probs = F.softmax(logits, dim=1).detach().cpu().numpy()
     print("\nВероятности:")
     print(probs)
-    legal_move_indices, board1 = get_legal_moves(fen_str)
+    legal_move_indices, board1 = get_legal_moves(fen_str)  # Вывод доски, индексы возможных ходов
     # вероятности хода
     probs_1d = probs[0]
     legal_probs = probs_1d[legal_move_indices]
@@ -145,8 +192,6 @@ def predict_move(model, board, castling, label):
     # ход из индекса
     index_to_move(best_idx)
     
- 
-
     return best_idx, fen_str, move_label
 
 
@@ -157,6 +202,10 @@ from IPython.display import SVG, display
 from utils.convert_dataset import move_to_index
 
 def  get_legal_moves(fen):
+    ''' 
+    Все возможные ходы в данной позиции
+    Вывод доски
+    '''
     board1 = chess.Board(fen)
     legal_moves = list(board1.legal_moves)
     legal_moves_str = [move.uci() for move in legal_moves]

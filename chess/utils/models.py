@@ -1,59 +1,81 @@
-
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
-class ChessNetMultiInput(nn.Module):
-    def __init__(self):
+
+# ======================     CNN + Трансформер    ========================
+
+class CNNTransformerChessNet(nn.Module):
+    ''' 
+    Модель, CNN + трансформер
+    '''
+    def __init__(self, 
+                 num_channels=13,      # количество каналов фигур на доске
+                 castling_features=4,  # количество признаков рокировок
+                 board_size=8, 
+                 d_model=128, 
+                 nhead=8, 
+                 num_layers=4, 
+                 num_classes=4096):
         super().__init__()
-        # Свёрточные слои для обработки позиции доски
-        self.conv1 = nn.Conv2d(13, 64, kernel_size=3, padding=1)
+        # CNN для извлечения локальных признаков с доски
+        self.conv1 = nn.Conv2d(num_channels, 64, kernel_size=3, padding=1)
         self.bn1 = nn.BatchNorm2d(64)
+        self.conv2 = nn.Conv2d(64, d_model, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(d_model)
         
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(128)
+        # Преобразует двумерное представление в последовательность для трансформера
+        self.board_size = board_size
+        self.positional_encoding = nn.Parameter(torch.randn(board_size * board_size, d_model))
         
-        self.conv3 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm2d(256)
+        # Трансформер 
+        encoder_layers = TransformerEncoderLayer(d_model=d_model, nhead=nhead, dim_feedforward=512, dropout=0.1)
+        self.transformer_encoder = TransformerEncoder(encoder_layers, num_layers=num_layers)
         
-        # Полносвязный слой после свёрток
-        self.fc1 = nn.Linear(256 * 8 * 8, 512)
+        # Обработка признаков рокировки
+        self.castling_fc = nn.Sequential(
+            nn.Linear(castling_features, 32),
+            nn.ReLU(),
+            nn.Linear(32, d_model),
+            nn.ReLU()
+        )
         
-        # Обработка castling прав — полносвязный слой
-        self.castling_fc = nn.Linear(4, 32)
+        # Объединённый классификатор
+        self.classifier = nn.Sequential(
+            nn.Linear(d_model * board_size * board_size + d_model, 512),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(512, num_classes)
+        )
+    
+    def forward(self, board, castling):
+        """
+        board: [batch_size, num_channels=13, 8, 8]
+        castling: [batch_size, 4]
+        """
+        x = F.relu(self.bn1(self.conv1(board)))
+        x = F.relu(self.bn2(self.conv2(x)))  # [B, d_model, 8, 8]
         
-        # Общий полносвязный слой после объединения позиций и прав
-        self.fc2 = nn.Linear(512 + 32, 1024)
-        self.dropout = nn.Dropout(0.3)
+        B, C, H, W = x.shape
+        x = x.view(B, C, H * W).permute(0, 2, 1)  # [B, 64, d_model]
+        x = x + self.positional_encoding.unsqueeze(0)  # позиционное кодирование
         
-        # Выходной слой — количество классов ходов, например 4096
-        self.fc_out = nn.Linear(1024, 4096)
-
-    def forward(self, board_input, castling_input):
-        # board_input: [batch, 13, 8, 8]
-        x = F.relu(self.bn1(self.conv1(board_input)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = F.relu(self.bn3(self.conv3(x)))
+        x = self.transformer_encoder(x)  # [B, 64, d_model]
+        x = x.flatten(start_dim=1)  # [B, 64*d_model]
         
-        x = x.view(x.size(0), -1)  # разворачиваем
+        #  рокировка
+        c = self.castling_fc(castling)  # [B, d_model]
         
-        x = F.relu(self.fc1(x))  # [batch, 512]
+        # Конкат с выходом трансформера
+        combined = torch.cat([x, c], dim=1)  # [B, 64*d_model + d_model]
         
-        castling_features = F.relu(self.castling_fc(castling_input))  # [batch, 32]
-        
-        combined = torch.cat([x, castling_features], dim=1)  # [batch, 544]
-        combined = F.relu(self.fc2(combined))
-        combined = self.dropout(combined)
-        
-        out = self.fc_out(combined)  # [batch, 4096]
+        out = self.classifier(combined)  # [B, num_classes]
         return out
 
 
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+# =========================     CNN     =====================
 
 class ResidualBlock(nn.Module):
     def __init__(self, channels):
@@ -72,6 +94,9 @@ class ResidualBlock(nn.Module):
         return out
 
 class ChessNetImproved(nn.Module):
+    ''' 
+    Модель CNN
+    '''
     def __init__(self):
         super().__init__()
         self.conv1 = nn.Conv2d(13, 64, kernel_size=3, padding=1)
@@ -122,9 +147,7 @@ class ChessNetImproved(nn.Module):
 
 
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+# ========================     ViT    ====================================
 
 class PatchEmbedding(nn.Module):
     def __init__(self, in_channels=13, patch_size=1, embed_dim=256, board_size=8):
@@ -164,6 +187,9 @@ class TransformerEncoderBlock(nn.Module):
         return x
 
 class ChessVisionTransformer(nn.Module):
+    ''' 
+    ViT
+    '''
     def __init__(self, embed_dim=256, num_heads=8, mlp_dim=512, num_layers=6, patch_size=1, board_size=8, num_classes=4096):
         super().__init__()
         self.patch_embed = PatchEmbedding(in_channels=13, patch_size=patch_size, embed_dim=embed_dim, board_size=board_size)

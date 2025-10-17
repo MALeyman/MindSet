@@ -1,9 +1,10 @@
-
-
 import torch
 from torch.utils.data import Dataset
 import pandas as pd
 import numpy as np
+from torch.utils.data import DataLoader, Subset
+from torch_geometric.data import Data
+
 
 # class ChessOneHotDataset(Dataset):
 #     def __init__(self, csv_file):
@@ -20,14 +21,6 @@ import numpy as np
 #         label = torch.tensor(self.labels[idx])
 #         return feature, label
 
-
-
-
-
-import torch
-from torch.utils.data import Dataset
-import pandas as pd
-import numpy as np
 
 class ChessDataset(Dataset):
     """
@@ -61,11 +54,6 @@ class ChessDataset(Dataset):
 
 
 
-
-
-from torch.utils.data import DataLoader, Subset
-import torch
-
 def create_data_loaders_from_csv(dataset, batch_size=32, val_split=0.2):
     ''' 
     Создание лоадеров
@@ -88,20 +76,7 @@ def create_data_loaders_from_csv(dataset, batch_size=32, val_split=0.2):
     return train_loader, val_loader
 
 
-
-
-
-
-
-
-
 #  ==================  для графовой модели =======================
-
-import torch
-from torch.utils.data import Dataset
-import pandas as pd
-import numpy as np
-from torch_geometric.data import Data
 
 def create_chessboard_edges():
     edges = []

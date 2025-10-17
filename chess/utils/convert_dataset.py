@@ -1,5 +1,3 @@
-
-
 import pandas as pd
 import numpy as np
 import chess  
@@ -20,7 +18,7 @@ def index_to_move(index):
 
 def move_to_index(move_str):
     ''' 
-    Индекс хода
+    Индекс из строкового значения хода
     '''
     file = lambda c: ord(c) - ord('a')
     rank = lambda c: int(c) - 1
@@ -31,7 +29,11 @@ def move_to_index(move_str):
 
 
 
+# ================    Обработка (преобразование) датасета    =============================
 
+
+# --------------     Конвертирование датасета в кратком виде  ----------------------
+   
 piece_to_num = {'P':1,'N':2,'B':3,'R':4,'Q':5,'K':6,'p':7,'n':8,'b':9,'r':10,'q':11,'k':12}
 
 def fen_to_feature_vector(fen):
@@ -54,7 +56,6 @@ def fen_to_feature_vector(fen):
     return feature_vector
 
 
-
 def convert_dataset_with_info(input_csv, output_csv):
     ''' 
     Конвертирование датасета в кратком виде
@@ -73,7 +74,7 @@ def convert_dataset_with_info(input_csv, output_csv):
 
 
 
-
+# --------------     Конвертирование датасета в  onehot  ----------------------
 
 piece_to_idx = {'P':0,'N':1,'B':2,'R':3,'Q':4,'K':5,
                 'p':6,'n':7,'b':8,'r':9,'q':10,'k':11}
@@ -103,7 +104,6 @@ def fen_to_onehot_vector(fen):
         ep.flatten()
     ])
     return feature_vector
-
 
 
 def convert_dataset_to_onehot(input_csv, output_csv):
@@ -261,6 +261,7 @@ def onehot_to_fen_and_text_unicode(board_tensor):
     fen = '/'.join(fen_rows)
     return fen, board_text
 
+
 def print_board_unicode(board_text):
     """
     Печатает шахматную доску в консоли с использованием Unicode символов шахматных фигур.
@@ -269,7 +270,7 @@ def print_board_unicode(board_text):
     board_text (list of list of str): двумерный список символов доски, как возвращается из onehot_to_fen_and_text_unicode.
 
     Вывод:
-    Для каждого символа выводится соответствующий Unicode символ фигуры (например, ♙, ♜ и т.п.) или точка для пустых полей.
+    Для каждого символа выводится соответствующий Unicode символ фигуры  или точка для пустых полей.
     """
     for row in board_text:
         print(' '.join(piece_to_unicode.get(p, p) for p in row))
@@ -332,11 +333,6 @@ def onehot_to_board_text(onehot_12_8_8):
             text_row.append(piece)
         board_text.append(text_row)
     return board_text
-
-
-
-
-
 
 
 # Из матрицы в FEN
@@ -467,8 +463,6 @@ def apply_move_and_get_new_board(board_tensor, castling_tensor, turn, move_index
         board.push(matched_move)
 
     return board.board_fen(), board.unicode()
-
-
 
 
 
